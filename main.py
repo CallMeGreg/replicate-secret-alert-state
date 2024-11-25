@@ -2,21 +2,22 @@ import requests
 import logging
 import time
 import os
+import math
 import argparse
 
 # Set constants
 GITHUB_API_URL = 'https://api.github.com'
 GENERIC_SLEEP_TIME_SECONDS = 1
 
-def is_secret_scanning_enabled(url, pat, org, repo):
+def is_secret_scanning_enabled(url, pat):
     # Make a request to the GitHub API to check if GHAS is enabled
     headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json'}
     # API refernce: https://docs.github.com/en/enterprise-cloud@latest/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
-    response = requests.get(f'url', headers=headers)
+    response = requests.get(url, headers=headers)
 
     # Ensure the request was successful
     if response.status_code != 200:
-        logging.error(f"Failed to fetch repository data: {response.status_code}, {response.text}")
+        logging.error(f"Failed to fetch repository data: {response.status_code}")
         return False
 
     # Check the 'secret_scanning' status field in the response
@@ -34,12 +35,12 @@ def get_secret_scanning_alerts_from_repo(url, pat, page, alerts):
 
         # Handle rate limits
         if response.status_code == 403 or response.status_code == 429:
-            logging.warning(f"Rate limit encountered: {response.status_code}, {response.text}")
+            logging.warning(f"Rate limit encountered: {response.status_code}")
             handle_rate_limits(response)
 
         # Ensure the request was successful
         elif response.status_code != 200:
-            logging.error(f"Failed to fetch secret scanning alerts: {response.status_code}, {response.text}")
+            logging.error(f"Failed to fetch secret scanning alerts: {response.status_code}")
             return alerts
 
         # Paginate through the results
@@ -61,15 +62,27 @@ def get_secret_scanning_alerts_from_repo(url, pat, page, alerts):
 
     return alerts
 
-def get_repos_from_org(base_url, pat, org):
-    # Get the list of repositories in the organization
+def get_repos_from_org(url, pat, page):
     headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json'}
-    # API refernce: https://docs.github.com/en/enterprise-cloud@latest/rest/repos/repos?apiVersion=2022-11-28#list-organization-repositories
-    response = requests.get(f'{base_url}/orgs/{org}/repos', headers=headers)
+    repos = []
+    while True:
+        response = requests.get(url, headers=headers, params={'page': page, 'per_page': 100})
 
-    if response.status_code != 200:
-        logging.error(f"Failed to fetch repositories: {response.status_code}, {response.text}")
-        return []
+        if response.status_code == 200:
+            repos.extend(response.json())
+            if 'next' in response.links:
+                page += 1
+            else:
+                break
+        elif response.status_code == 403 and 'X-RateLimit-Remaining' in response.headers and response.headers['X-RateLimit-Remaining'] == '0':
+            reset_time = int(response.headers['X-RateLimit-Reset'])
+            sleep_time = reset_time - time.time() + 1
+            logging.warning(f"Rate limit exceeded. Sleeping for {sleep_time} seconds.")
+            time.sleep(sleep_time)
+        else:
+            logging.error(f"Failed to fetch repositories: {response.status_code}")
+            break
+    return repos
 
 def handle_rate_limits(response):
     # Log x-ratelimit-remaining and sleep if it's low
@@ -105,12 +118,12 @@ def update_secret_scanning_alert(url, pat, state, resolution, resolution_comment
     while True:
         # Handle rate limits
         if response.status_code == 403 or response.status_code == 429:
-            logging.warning(f"Rate limit encountered: {response.status_code}, {response.text}")
+            logging.warning(f"Rate limit encountered: {response.status_code}")
             handle_rate_limits(response)
 
         # Ensure the request was successful
         elif response.status_code != 200:
-            logging.error(f"Failed to update secret scanning alert: {response.status_code}, {response.text}")
+            logging.error(f"Failed to update secret scanning alert: {response.status_code}")
             return False
         
         # Return success
@@ -131,7 +144,7 @@ def str2bool(value):
        
 def main():
     # Set up logging
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     # Fetch environment variables
     github_pat = os.getenv('GITHUB_PAT')
@@ -168,7 +181,8 @@ def main():
         logging.info(f"Checking organization: {org}")
 
         # Get the list of repositories in the organization
-        repos = get_repos_from_org(args.api_url, github_pat, org)
+        repos = get_repos_from_org(f"{args.api_url}/orgs/{org}/repos", github_pat, 1)
+        print(len(repos))
         if not repos:
             continue
 
@@ -177,7 +191,7 @@ def main():
             logging.info(f"Checking repository: {repo['full_name']}")
 
             # Check if secret scanning is enabled
-            ss_enabled = is_secret_scanning_enabled(f'{args.api_url}/repos/{org}/{repo}', github_pat, org, repo['name'])
+            ss_enabled = is_secret_scanning_enabled(f"{args.api_url}/repos/{org}/{repo['name']}", github_pat)
             if not ss_enabled:
                 logging.warning(f"Secret scanning not enabled for {repo['full_name']}, skipping...")
                 continue
