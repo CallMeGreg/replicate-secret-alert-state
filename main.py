@@ -11,7 +11,7 @@ GENERIC_SLEEP_TIME_SECONDS = 1
 
 def is_secret_scanning_enabled(url, pat):
     # Make a request to the GitHub API to check if GHAS is enabled
-    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json'}
+    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}
     # API refernce: https://docs.github.com/en/enterprise-cloud@latest/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
     response = requests.get(url, headers=headers)
 
@@ -28,7 +28,7 @@ def is_secret_scanning_enabled(url, pat):
 def get_secret_scanning_alerts_from_repo(url, pat, page, alerts):
     while url:
         logging.debug(f"Fetching secret scanning alerts (page {page} from {url})")
-        headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json'}
+        headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}
         params = {'per_page': 100}
         # API reference: https://docs.github.com/en/enterprise-cloud@latest/rest/secret-scanning/secret-scanning?apiVersion=2022-11-28#list-secret-scanning-alerts-for-a-repository
         response = requests.get(url, headers=headers, params=params)
@@ -63,7 +63,7 @@ def get_secret_scanning_alerts_from_repo(url, pat, page, alerts):
     return alerts
 
 def get_repos_from_org(url, pat, page):
-    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json'}
+    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}
     repos = []
     while True:
         response = requests.get(url, headers=headers, params={'page': page, 'per_page': 100})
@@ -111,7 +111,7 @@ def handle_rate_limits(response):
 
 def update_secret_scanning_alert(url, pat, state, resolution, resolution_comment):
     # Update the secret scanning alert with the given state and resolution
-    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json'}
+    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}
     data = {'state': state, 'resolution': resolution, 'resolution_comment': resolution_comment}
     # API reference: https://docs.github.com/en/enterprise-cloud@latest/rest/secret-scanning/secret-scanning?apiVersion=2022-11-28#update-a-secret-scanning-alert
     response = requests.patch(url, headers=headers, json=data)
@@ -182,7 +182,6 @@ def main():
 
         # Get the list of repositories in the organization
         repos = get_repos_from_org(f"{args.api_url}/orgs/{org}/repos", github_pat, 1)
-        print(len(repos))
         if not repos:
             continue
 
@@ -224,9 +223,9 @@ def main():
     # Print summary
     print(f"\nAlerts matched between the two patterns: {matched_alert_count} ")
     if args.dry_run:
-        print(f"Count of alerts that would have been closed: {matched_closed_alert_count}")
+        print(f"Count of alerts that would have been closed: {matched_closed_alert_count}\n")
     else:
-        print(f"Count of alerts that were closed: {matched_closed_alert_count}")
+        print(f"Count of alerts that were closed: {matched_closed_alert_count}\n")
 
 if __name__ == '__main__':
     main()

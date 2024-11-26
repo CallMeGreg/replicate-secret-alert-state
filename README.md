@@ -13,8 +13,8 @@ The script takes in either a CSV file with a list of organizations, or a single 
 3. Set the state, resolution reason, and resolution comment of the alert with the prefix to match the state of the corresponding alert.
 
 # Pre-requisites
-- Python 3
-- Python `requests` library (install using `pip install requests`)
+- Python 3.12+
+- Python dependencies (install using `pip install -r requirements.txt`)
 - A GitHub Personal Access Token (PAT) for an account with write access to all target secret scanning alerts, with the following scope:
   - `repo` (Full control of private repositories)
 - (optional) A CSV file with the list of organizations to target. The CSV file should NOT have a header. Alternatively, you can specify a single organization as a command line argument. See [example.csv](./example.csv) for an example.
@@ -42,7 +42,22 @@ export GITHUB_PAT=ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 By default, the script will run in dry-run mode. This will log any alert mapping that were identified without making any changes to the alerts, and list the total number of mapped alerts in addition to the total number of alerts that _would have been updated_. To run the script in dry-run mode, use the following command:
 
 ```bash
-python3 main.py --prefix "ent-" --org-name "callmegreg-demo-org"
+python main.py --prefix "ent-" --org-name "callmegreg-demo-org"
+```
+
+Instead of specifying one organization, you can also provide a CSV file with a list of organizations to target:
+
+```bash
+python main.py --prefix "ent-" --org-list /path/to/your/org-list.csv
+```
+
+> [!NOTE]
+> `--org-name` and `--org-list` are mutually exclusive. Exactly one of the two options must be provided.
+
+For GHES instances, you can specify the API URL using the `--api-url` argument:
+
+```bash
+python main.py --prefix "ent-" --org-list /path/to/your/org-list.csv --api-url "https://HOSTNAME/api/v3"
 ```
 
 ## Active mode
@@ -50,5 +65,5 @@ python3 main.py --prefix "ent-" --org-name "callmegreg-demo-org"
 When you're ready to close duplicate alerts, you can disable dry-run mode by using the following command:
 
 ```bash
-python3 main.py --prefix "ent-" --org-name "callmegreg-demo-org" --dry-run false
+python main.py --prefix "ent-" --org-list /path/to/your/org-list.csv --api-url "https://HOSTNAME/api/v3" --dry-run false
 ```
