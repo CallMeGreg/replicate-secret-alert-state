@@ -9,22 +9,6 @@ import argparse
 GITHUB_API_URL = 'https://api.github.com'
 GENERIC_SLEEP_TIME_SECONDS = 1
 
-def is_secret_scanning_enabled(url, pat):
-    # Make a request to the GitHub API to check if GHAS is enabled
-    headers = {'Authorization': f'Bearer {pat}', 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}
-    # API refernce: https://docs.github.com/en/enterprise-cloud@latest/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
-    response = requests.get(url, headers=headers)
-
-    # Ensure the request was successful
-    if response.status_code != 200:
-        logging.error(f"Failed to fetch repository data: {response.status_code}")
-        return False
-
-    # Check the 'secret_scanning' status field in the response
-    repo_info = response.json()
-    ss_enabled = 'enabled' in repo_info['security_and_analysis']['secret_scanning']['status']
-    return ss_enabled
-
 def get_secret_scanning_alerts_from_repo(url, pat, page, alerts):
     while url:
         logging.debug(f"Fetching secret scanning alerts (page {page} from {url})")
@@ -144,7 +128,7 @@ def str2bool(value):
        
 def main():
     # Set up logging
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO) # change level to logging.WARNING or logging.ERROR for less output
 
     # Fetch environment variables
     github_pat = os.getenv('GITHUB_PAT')
@@ -190,10 +174,10 @@ def main():
             logging.info(f"Checking repository: {repo['full_name']}")
 
             # Check if secret scanning is enabled
-            ss_enabled = is_secret_scanning_enabled(f"{args.api_url}/repos/{org}/{repo['name']}", github_pat)
+            ss_enabled = 'enabled' in repo['security_and_analysis']['secret_scanning']['status']
             if not ss_enabled:
                 logging.warning(f"Secret scanning not enabled for {repo['full_name']}, skipping...")
-                continue
+                continue            
 
             # Get the secret scanning alerts from the repository
             alerts = get_secret_scanning_alerts_from_repo(f'{args.api_url}/repos/{org}/{repo["name"]}/secret-scanning/alerts', github_pat, 1, [])
